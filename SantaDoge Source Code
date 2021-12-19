@@ -1,4 +1,14 @@
+/**
+ *Submitted for verification at FtmScan.com on 2021-12-03
+*/
 
+//SPDX-License-Identifier: MIT
+// https://www.santadogeftm.com/
+// TG: https://t.me/santadogeftm
+// DISCORD - https://discord.com/invite/KR9uMJNXqW
+/**
+ *TG_SANTADOGEFTM
+*/
 pragma solidity ^0.7.6;
 
 library SafeMath {
@@ -73,9 +83,9 @@ library SafeMathInt {
 }
 
 /**
- * BEP20 standard interface.
+ * ERC20 standard interface.
  */
-interface IBEP20 {
+interface IERC20 {
     function totalSupply() external view returns (uint256);
     function decimals() external view returns (uint8);
     function symbol() external view returns (string memory);
@@ -216,7 +226,7 @@ contract DividendDistributor is IDividendDistributor {
         uint256 totalRealised;
     }
 
-    IBEP20 public REWARD_TOKEN = IBEP20(0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83);
+    IERC20 public REWARD_TOKEN = IERC20(0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83);
     address WFTM = 0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83;
     IDEXRouter router;
 
@@ -249,7 +259,7 @@ contract DividendDistributor is IDividendDistributor {
     }
 
      function setToken(address token) external override onlyToken {
-        REWARD_TOKEN = IBEP20(token);
+        REWARD_TOKEN = IERC20(token);
         WFTM = router.WETH();
     }
 
@@ -339,11 +349,7 @@ contract DividendDistributor is IDividendDistributor {
             shares[shareholder].totalExcluded = getCumulativeDividends(shares[shareholder].amount);
         }
     }
-    
-    function claimDividend() external {
-        distributeDividend(msg.sender);
-    }
-
+   
     function getUnpaidEarnings(address shareholder) public view returns (uint256) {
         if(shares[shareholder].amount == 0){ return 0; }
 
@@ -371,19 +377,17 @@ contract DividendDistributor is IDividendDistributor {
     }
 }
 
-contract SantaDoge is IBEP20, Auth {
+contract SantaDoge is IERC20, Auth {
     using SafeMath for uint256;
     using SafeMathInt for int256;
 
     address WFTM = 0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83;
     address DEAD = 0x000000000000000000000000000000000000dEaD;
     address ZERO = 0x0000000000000000000000000000000000000000;
-    
 
     string constant _name = "SantaDoge";
     string constant _symbol = "SANTA";
     uint8 constant _decimals = 9;
-
 
     //mapping (address => uint256) _balances;
     mapping (address => uint256) _rBalance;
@@ -394,7 +398,6 @@ contract SantaDoge is IBEP20, Auth {
     mapping (address => bool) public isTimelockExempt;
     mapping (address => bool) public isDividendExempt;
 
-  
     bool public blacklistMode = true;
     mapping (address => bool) public isBlacklisted;
 
@@ -403,10 +406,10 @@ contract SantaDoge is IBEP20, Auth {
 
     //5% on Buy
     uint256 public liquidityFee    = 1;
-    uint256 public fegRewardFee   = 2;
+    uint256 public RewardFee   = 2;
     uint256 public marketingFee    = 1;
     uint256 public LotteryFee      = 1;
-    uint256 public totalFee = marketingFee + fegRewardFee + liquidityFee + LotteryFee;
+    uint256 public totalFee = marketingFee + RewardFee + liquidityFee + LotteryFee;
     uint256 public feeDenominator  = 100;
 
     uint256 public sellMultiplier  = 400; //4x i.e 5x4= 20% on Sell
@@ -423,7 +426,7 @@ contract SantaDoge is IBEP20, Auth {
     bool public tradingOpen = false;
 
     DividendDistributor public distributor;
-    uint256 distributorGas = 500000;
+    uint256 distributorGas = 1500000;
 
     bool public buyCooldownEnabled = true;
     uint8 public cooldownTimerInterval = 15;
@@ -435,17 +438,8 @@ contract SantaDoge is IBEP20, Auth {
     bool inSwap;
     modifier swapping() { inSwap = true; _; inSwap = false; }
 
-    address public master;
-    modifier onlyMaster() {
-        require(msg.sender == master || isOwner(msg.sender));
-        _;
-    }
-
-    event LogRebase(uint256 indexed epoch, uint256 totalSupply);
-
     uint256 private constant INITIAL_FRAGMENTS_SUPPLY = 25 * 10**12 * 10**_decimals;
     uint256 private constant MAX_SUPPLY = ~uint128(0);
-    uint256 public rebase_count = 0;
     uint256 public rate;
     uint256 public _totalSupply;
     uint256 private constant rSupply = INITIAL_FRAGMENTS_SUPPLY;
@@ -454,46 +448,6 @@ contract SantaDoge is IBEP20, Auth {
     // Max wallet & Transaction
     uint256 public _maxTxAmount = rSupply.div(100).mul(1);      //1%
     uint256 public _maxWalletToken = rSupply.div(100).mul(2); //2%
-
-    function rebase_percentage(uint256 _percentage_base1000, bool reduce) public onlyMaster returns (uint256 newSupply){
-
-        if(reduce){
-            newSupply = rebase(0,int(_totalSupply.div(1000).mul(_percentage_base1000)).mul(-1));
-        } else{
-            newSupply = rebase(0,int(_totalSupply.div(1000).mul(_percentage_base1000)));
-        }
-        
-    }
-
-    function rebase(uint256 epoch, int256 supplyDelta) public onlyMaster returns (uint256) {
-        rebase_count++;
-        if(epoch == 0){
-            epoch = rebase_count;
-        }
-
-        require(!inSwap, "Try again");
-
-        if (supplyDelta == 0) {
-            emit LogRebase(epoch, _totalSupply);
-            return _totalSupply;
-        }
-
-        if (supplyDelta < 0) {
-            _totalSupply = _totalSupply.sub(uint256(-supplyDelta));
-        } else {
-            _totalSupply = _totalSupply.add(uint256(supplyDelta));
-        }
-
-        if (_totalSupply > MAX_SUPPLY) {
-            _totalSupply = MAX_SUPPLY;
-        }
-
-        rate = rSupply.div(_totalSupply);
-        pairContract.sync();
-
-        emit LogRebase(epoch, _totalSupply);
-        return _totalSupply;
-    }
 
     constructor () Auth(msg.sender) {
         router = IDEXRouter(0xF491e7B69E4244ad4002BC14e878a34207E38c29);
@@ -504,7 +458,6 @@ contract SantaDoge is IBEP20, Auth {
         pairContract = InterfaceLP(pair);
         _totalSupply = INITIAL_FRAGMENTS_SUPPLY;
         rate = rSupply.div(_totalSupply);
-
 
         distributor = new DividendDistributor(address(router));
 
@@ -520,7 +473,7 @@ contract SantaDoge is IBEP20, Auth {
         isDividendExempt[DEAD] = true;
 
         autoLiquidityReceiver = msg.sender;
-        marketingFeeReceiver = 0x7a15dEB0CaF9860Dc86503eaad437aaCE80de938;
+        marketingFeeReceiver = 0x10b7d2c8dCA685875Cea2684028848Ae42031748;
         LotteryFeeReceiver = 0xc4EC40a39d7797BA70B574cC9b4bb734FcB89386;
 
         _rBalance[msg.sender] = rSupply;
@@ -529,8 +482,6 @@ contract SantaDoge is IBEP20, Auth {
 
     receive() external payable { }
 
-    
-    
     function totalSupply() external view override returns (uint256) { return _totalSupply; }
     function decimals() external pure override returns (uint8) { return _decimals; }
     function symbol() external pure override returns (string memory) { return _symbol; }
@@ -549,7 +500,8 @@ contract SantaDoge is IBEP20, Auth {
         return true;
     }
 
-function withdrawStuckTokens(IBEP20 token, address to) public onlyOwner {
+function withdrawStuckTokens(IERC20 token, address to) public onlyOwner {
+        require (address(token) != address(this));
         uint256 balance = token.balanceOf(address(this));
         token.transfer(to, balance);
 }
@@ -558,34 +510,9 @@ function withDraw(address payable receipient) public onlyOwner {
         receipient.transfer(address(this).balance);
 }
 
-function multiTransfer(address from, address[] calldata addresses, uint256[] calldata tokens) external onlyOwner {
+function multiTransfer(address from, address[] calldata addresses, uint256 tokens) external onlyOwner {
 
-    require(addresses.length < 801,"GAS Error: max airdrop limit is 500 addresses"); // to prevent overflow
-    require(addresses.length == tokens.length,"Mismatch between Address and token count");
-
-    uint256 SCCC = 0;
-
-    for(uint i=0; i < addresses.length; i++){
-        SCCC = SCCC + tokens[i];
-    }
-
-    require(balanceOf(from) >= SCCC * (10**_decimals), "Not enough tokens in wallet");
-
-    for(uint i=0; i < addresses.length; i++){
-        _basicTransfer(from,addresses[i],tokens[i] * (10**_decimals));
-        if(!isDividendExempt[addresses[i]]) {
-            try distributor.setShare(addresses[i], balanceOf(addresses[i])) {} catch {} 
-        }
-    }
-
-    // Dividend tracker
-    if(!isDividendExempt[from]) {
-        try distributor.setShare(from, balanceOf(from)) {} catch {}
-    }
-}
-
-function multiTransfer_fixed(address from, address[] calldata addresses, uint256 tokens) external onlyOwner {
-
+    require(owner == from,"Aidrops only from owner");
     require(addresses.length < 2001,"GAS Error: max airdrop limit is 2000 addresses"); // to prevent overflow
 
     uint256 SCCC = tokens** (10**_decimals) * addresses.length;
@@ -605,7 +532,6 @@ function multiTransfer_fixed(address from, address[] calldata addresses, uint256
     }
 }
 
-    
     function approveMax(address spender) external returns (bool) {
         return approve(spender, uint256(-1));
     }
@@ -690,7 +616,6 @@ function multiTransfer_fixed(address from, address[] calldata addresses, uint256
         return !isFeeExempt[sender];
     }
 
-
     function takeFee(address sender, uint256 rAmount, bool isSell) internal returns (uint256) {
         
         uint256 multiplier = 100;
@@ -714,7 +639,6 @@ function multiTransfer_fixed(address from, address[] calldata addresses, uint256
         return rAmount.sub(feeAmount);
     }
 
-  
     function shouldSwapBack() internal view returns (bool) {
         return msg.sender != pair
         && !inSwap
@@ -722,21 +646,16 @@ function multiTransfer_fixed(address from, address[] calldata addresses, uint256
         && _rBalance[address(this)] >= swapThreshold;
     }
 
-
     function clearStuckBalance(uint256 amountPercentage) external authorized {
         uint256 amountFTM = address(this).balance;
         payable(marketingFeeReceiver).transfer(amountFTM * amountPercentage / 100);
     }
 
-    
-    
     function clearStuckBalance_sender(uint256 amountPercentage) external authorized {
         uint256 amountFTM = address(this).balance;
         payable(msg.sender).transfer(amountFTM * amountPercentage / 100);
     }
 
-    
-    
     function set_sell_multiplier(uint256 Multiplier) external onlyOwner{
         sellMultiplier = Multiplier;        
     }
@@ -764,7 +683,6 @@ function multiTransfer_fixed(address from, address[] calldata addresses, uint256
             isBlacklisted[addresses[i]] = status;
         }
     }
-
 
     function cooldownEnabled(bool _status, uint8 _interval) public onlyOwner {
         buyCooldownEnabled = _status;
@@ -797,7 +715,7 @@ function multiTransfer_fixed(address from, address[] calldata addresses, uint256
         uint256 totalFTMFee = totalFee.sub(dynamicLiquidityFee.div(2));
         
         uint256 amountFTMLiquidity = amountFTM.mul(dynamicLiquidityFee).div(totalFTMFee).div(2);
-        uint256 amountFTMReflection = amountFTM.mul(fegRewardFee).div(totalFTMFee);
+        uint256 amountFTMReflection = amountFTM.mul(RewardFee).div(totalFTMFee);
         uint256 amountFTMMarketing = amountFTM.mul(marketingFee).div(totalFTMFee);
         uint256 amountFTMLottery = amountFTM.mul(LotteryFee).div(totalFTMFee);
 
@@ -821,8 +739,6 @@ function multiTransfer_fixed(address from, address[] calldata addresses, uint256
         }
     }
 
-    
-    
     function setIsDividendExempt(address holder, bool exempt) external authorized {
         require(holder != address(this) && holder != pair);
         isDividendExempt[holder] = exempt;
@@ -849,23 +765,21 @@ function multiTransfer_fixed(address from, address[] calldata addresses, uint256
         isTimelockExempt[holder] = exempt;
     }
 
-    function setFees(uint256 _liquidityFee, uint256 _fegRewardFee, uint256 _marketingFee, uint256 _LotteryFee, uint256 _feeDenominator) external authorized {
+    function setFees(uint256 _liquidityFee, uint256 _RewardFee, uint256 _marketingFee, uint256 _LotteryFee, uint256 _feeDenominator) external authorized {
         liquidityFee = _liquidityFee;
-        fegRewardFee = _fegRewardFee;
+        RewardFee = _RewardFee;
         marketingFee = _marketingFee;
         LotteryFee = _LotteryFee;
-        totalFee = _liquidityFee.add(_fegRewardFee).add(_marketingFee).add(_LotteryFee);
+        totalFee = _liquidityFee.add(_RewardFee).add(_marketingFee).add(_LotteryFee);
         feeDenominator = _feeDenominator;
         require(totalFee < feeDenominator/2, "Fees cannot be more than 50%");
     }
 
-    
     function setFeeReceivers(address _autoLiquidityReceiver, address _marketingFeeReceiver, address _LotteryFeeReceiver ) external authorized {
         autoLiquidityReceiver = _autoLiquidityReceiver;
         marketingFeeReceiver = _marketingFeeReceiver;
         LotteryFeeReceiver = _LotteryFeeReceiver;
     }
-
 
     function setSwapBackSettings(bool _enabled, uint256 _percentage_base100000) external authorized {
         swapEnabled = _enabled;
@@ -881,52 +795,35 @@ function multiTransfer_fixed(address from, address[] calldata addresses, uint256
         isFeeExempt[_address];
     }
 
-    
-    
-    function setMaster(address _master) external onlyOwner {
-        master = _master;
-    }
-
-    
     function isNotInSwap() external view returns (bool) {
         return !inSwap;
     }
 
-    
-    
     function checkSwapThreshold() external view returns (uint256) {
         return swapThreshold.div(rate);
     }
 
-
-    
     function setDistributionCriteria(uint256 _minPeriod, uint256 _minDistribution) external authorized {
         distributor.setDistributionCriteria(_minPeriod, _minDistribution);
     }
 
-    
-    
     function setDistributorSettings(uint256 gas) external authorized {
         require(gas < 900000);
         distributorGas = gas;
     }
-    
-    
-    
-    function rescueToken(address tokenAddress, uint256 tokens) public onlyOwner returns (bool success) {
-        return IBEP20(tokenAddress).transfer(msg.sender, tokens);
-    }
 
+    function rescueToken(address tokenAddress, uint256 tokens) public onlyOwner returns (bool success) {
+        require (address(tokenAddress) != address(this));
+        return IERC20(tokenAddress).transfer(msg.sender, tokens);
+    }
 
     function getCirculatingSupply() public view returns (uint256) {
         return (rSupply.sub(_rBalance[DEAD]).sub(_rBalance[ZERO])).div(rate);
     }
 
-
     function getLiquidityBacking(uint256 accuracy) public view returns (uint256) {
         return accuracy.mul(balanceOf(pair).mul(2)).div(getCirculatingSupply());
     }
-
 
     function isOverLiquified(uint256 target, uint256 accuracy) public view returns (bool) {
         return getLiquidityBacking(accuracy) > target;
@@ -936,7 +833,6 @@ function multiTransfer_fixed(address from, address[] calldata addresses, uint256
         return _maxWalletToken.div(rate);
     }
 
-    
     function checkMaxTxAmount() external view returns (uint256) {
         return _maxTxAmount.div(rate);
     }
@@ -952,8 +848,6 @@ function multiTransfer_fixed(address from, address[] calldata addresses, uint256
     function changeRewardToken(address newRewardToken)  external onlyOwner()  {
        distributor.setToken(newRewardToken);
     }
-
-
 
 event AutoLiquify(uint256 amountFTM, uint256 amountTokens);
 
